@@ -45,7 +45,7 @@ prost = "0.10"
 prost-types = "0.10"
 bech32 = "0.9.0"
 thiserror = { version = "1.0" }
-
+osmosis-std = "0.1.5"
 
 [dev-dependencies]
 cosmwasm-schema = { version = "1.0.0", default-features = false }

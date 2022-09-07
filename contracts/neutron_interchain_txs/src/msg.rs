@@ -1,3 +1,4 @@
+use osmosis_std::types::osmosis::gamm::v1beta1::SwapAmountInRoute;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
@@ -45,4 +46,13 @@ pub enum ExecuteMsg {
         timeout: Option<u64>,
     },
     CleanAckResults {},
+    Swap {
+        routes: Vec<SwapAmountInRoute>,
+        connection_id: String,
+        interchain_account_id: String,
+        token_in: String,
+        token_in_amount: String,
+    },
 }
+
+

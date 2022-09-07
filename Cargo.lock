@@ -442,6 +442,7 @@ dependencies = [
  "cosmwasm-std",
  "cw-storage-plus",
  "neutron-sdk",
+ "osmosis-std",
  "prost",
  "prost-types",
  "protobuf",
@@ -491,6 +492,32 @@ name = "opaque-debug"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
+
+[[package]]
+name = "osmosis-std"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80c1bdede8290528b7051f4234245226716642c137492a07753cd1b586122ed1"
+dependencies = [
+ "cosmwasm-std",
+ "osmosis-std-derive",
+ "prost",
+ "prost-types",
+ "schemars",
+ "serde",
+]
+
+[[package]]
+name = "osmosis-std-derive"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fd00742262f2da0c80789f0c343424ad4a9611bafb6f97ad335511c50c6aeb48"
+dependencies = [
+ "itertools",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "paste"

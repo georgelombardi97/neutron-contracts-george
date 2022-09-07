@@ -22,6 +22,8 @@ use cosmwasm_std::{
     to_binary, Binary, CosmosMsg, CustomQuery, Deps, DepsMut, Env, MessageInfo, Reply, Response,
     StdError, StdResult, SubMsg,
 };
+use osmosis_std::types::osmosis::gamm::v1beta1::{MsgSwapExactAmountIn, SwapAmountInRoute};
+use osmosis_std::types::cosmos::base::v1beta1::{Coin as OsmoCoin}
 use prost::Message;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -93,6 +95,17 @@ pub fn execute(
             timeout,
         } => execute_undelegate(deps, env, interchain_account_id, validator, amount, timeout),
         ExecuteMsg::CleanAckResults {} => execute_clean_ack_results(deps),
+        ExecuteMsg::Swap {
+            routes,
+            connection_id,
+            interchain_account_id,
+            token_in,
+            token_in_amount
+        } => execute_swap(routes,
+                          connection_id,
+                          interchain_account_id,
+                          token_in,
+                          token_in_amount),
     }
 }
 
@@ -217,6 +230,47 @@ fn execute_delegate(
     Ok(Response::default().add_submessages(vec![submsg]))
 }
 
+fn execute_swap(
+    routes: Vec<SwapAmountInRoute>,
+    connection_id: String,
+    interchain_account_id: String,
+    token_in: String,
+    token_in_amount: String,
+) -> StdResult<Response<NeutronMsg>> {
+    let swap_message = MsgSwapExactAmountIn {
+        // NOTE: sender should not be user! because contract cannot swap from user account
+        //       it can only swap from contract account, we should later send it back to user if needed.
+        // sender: info.sender.to_string(),
+        sender: _env.contract.address.to_string(),
+        routes,
+        token_in: Some(OsmoCoin { denom: token_in.clone(), amount: token_in_amount.into() }),
+        token_out_min_amount: "1".to_string(),
+    };
+
+    let mut buf = Vec::new();
+    buf.reserve(Message::encoded_len(&swap_message));
+    if let Err(e) = swap_message.encode(&mut buf) {
+        return Err(StdError::generic_err(format!("Encode error: {}", e)));
+    }
+
+    let cosmos_msg_swap = ProtobufAny {
+        type_url: "/osmosis.gamm.v1beta1.MsgSwapExactAmountIn".to_string(),
+        value: Binary::from(buf),
+    };
+
+    let cosmos_msg = NeutronMsg::submit_tx(
+        connection_id,
+        interchain_account_id.clone(),
+        vec![cosmos_msg_swap],
+        "".to_string(),
+        timeout.unwrap_or(DEFAULT_TIMEOUT_SECONDS),
+    );
+
+    let submsg = SubMsg::new(cosmos_msg);
+
+    Ok(Response::default().add_submessages(vec![submsg]))
+}
+
 fn execute_undelegate(
     mut deps: DepsMut,
     env: Env,
@@ -234,12 +288,6 @@ fn execute_undelegate(
             amount: amount.to_string(),
         }),
     };
-    let mut buf = Vec::new();
-    buf.reserve(delegate_msg.encoded_len());
-
-    if let Err(e) = delegate_msg.encode(&mut buf) {
-        return Err(StdError::generic_err(format!("Encode error: {}", e)));
-    }
 
     let any_msg = ProtobufAny {
         type_url: "/cosmos.staking.v1beta1.MsgUndelegate".to_string(),
@@ -334,7 +382,7 @@ fn sudo_response(deps: DepsMut, request: RequestPacket, data: Binary) -> StdResu
             "WASMDEBUG: sudo_response: sudo received: {:?} {:?}",
             request, data
         )
-        .as_str(),
+            .as_str(),
     );
     let seq_id = request
         .sequence
@@ -371,7 +419,7 @@ fn sudo_response(deps: DepsMut, request: RequestPacket, data: Binary) -> StdResu
                         "This type of acknowledgement is not implemented: {:?}",
                         payload
                     )
-                    .as_str(),
+                        .as_str(),
                 );
             }
         }
