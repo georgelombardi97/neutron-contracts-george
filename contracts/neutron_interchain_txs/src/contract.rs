@@ -23,7 +23,7 @@ use cosmwasm_std::{
     StdError, StdResult, SubMsg,
 };
 use osmosis_std::types::osmosis::gamm::v1beta1::{MsgSwapExactAmountIn, SwapAmountInRoute};
-use osmosis_std::types::cosmos::base::v1beta1::{Coin as OsmoCoin}
+use osmosis_std::types::cosmos::base::v1beta1::{Coin as OsmoCoin};
 use prost::Message;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -96,12 +96,14 @@ pub fn execute(
         } => execute_undelegate(deps, env, interchain_account_id, validator, amount, timeout),
         ExecuteMsg::CleanAckResults {} => execute_clean_ack_results(deps),
         ExecuteMsg::Swap {
+            sender_on_dest_chain,
             routes,
             connection_id,
             interchain_account_id,
             token_in,
-            token_in_amount
-        } => execute_swap(routes,
+            token_in_amount,
+        } => execute_swap(sender_on_dest_chain,
+                          routes,
                           connection_id,
                           interchain_account_id,
                           token_in,
@@ -231,6 +233,7 @@ fn execute_delegate(
 }
 
 fn execute_swap(
+    sender_on_dest_chain: String,
     routes: Vec<SwapAmountInRoute>,
     connection_id: String,
     interchain_account_id: String,
@@ -238,10 +241,7 @@ fn execute_swap(
     token_in_amount: String,
 ) -> StdResult<Response<NeutronMsg>> {
     let swap_message = MsgSwapExactAmountIn {
-        // NOTE: sender should not be user! because contract cannot swap from user account
-        //       it can only swap from contract account, we should later send it back to user if needed.
-        // sender: info.sender.to_string(),
-        sender: _env.contract.address.to_string(),
+        sender: sender_on_dest_chain,
         routes,
         token_in: Some(OsmoCoin { denom: token_in.clone(), amount: token_in_amount.into() }),
         token_out_min_amount: "1".to_string(),
@@ -263,7 +263,7 @@ fn execute_swap(
         interchain_account_id.clone(),
         vec![cosmos_msg_swap],
         "".to_string(),
-        timeout.unwrap_or(DEFAULT_TIMEOUT_SECONDS),
+        DEFAULT_TIMEOUT_SECONDS,
     );
 
     let submsg = SubMsg::new(cosmos_msg);
@@ -288,6 +288,12 @@ fn execute_undelegate(
             amount: amount.to_string(),
         }),
     };
+    let mut buf = Vec::new();
+    buf.reserve(delegate_msg.encoded_len());
+
+    if let Err(e) = delegate_msg.encode(&mut buf) {
+        return Err(StdError::generic_err(format!("Encode error: {}", e)));
+    }
 
     let any_msg = ProtobufAny {
         type_url: "/cosmos.staking.v1beta1.MsgUndelegate".to_string(),

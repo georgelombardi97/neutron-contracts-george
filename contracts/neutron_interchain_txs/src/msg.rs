@@ -47,6 +47,7 @@ pub enum ExecuteMsg {
     },
     CleanAckResults {},
     Swap {
+        sender_on_dest_chain: String,
         routes: Vec<SwapAmountInRoute>,
         connection_id: String,
         interchain_account_id: String,
