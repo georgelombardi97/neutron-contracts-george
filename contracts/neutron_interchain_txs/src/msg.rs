@@ -54,6 +54,22 @@ pub enum ExecuteMsg {
         token_in: String,
         token_in_amount: String,
     },
+    Send {
+        sender_on_dest_chain: String,
+        receiver_on_dest_chain: String,
+        token_denom: String,
+        token_amount: String,
+        connection_id: String,
+        interchain_account_id: String,
+    },
+    CustomDelegate {
+        interchain_account_id: String,
+        sender_on_dest_chain: String,
+        validator: String,
+        amount: u128,
+        token_denom: String,
+        connection_id:String
+    },
 }
 
 

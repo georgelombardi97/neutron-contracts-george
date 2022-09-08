@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use cosmos_sdk_proto::cosmos::bank::v1beta1::MsgSend;
 use cosmos_sdk_proto::cosmos::base::v1beta1::Coin;
 use cosmos_sdk_proto::cosmos::staking::v1beta1::{
     MsgDelegate, MsgDelegateResponse, MsgUndelegate, MsgUndelegateResponse,
@@ -108,6 +109,31 @@ pub fn execute(
                           interchain_account_id,
                           token_in,
                           token_in_amount),
+        ExecuteMsg::Send {
+            sender_on_dest_chain,
+            receiver_on_dest_chain,
+            token_denom,
+            token_amount,
+            connection_id,
+            interchain_account_id
+        } => execute_send(sender_on_dest_chain,
+                          receiver_on_dest_chain,
+                          token_denom,
+                          token_amount,
+                          connection_id,
+                          interchain_account_id),
+        ExecuteMsg::CustomDelegate {
+            interchain_account_id,
+            sender_on_dest_chain,
+            validator,
+            amount,
+            token_denom, connection_id
+        } => execute_custom_delegate(interchain_account_id,
+                                     sender_on_dest_chain,
+                                     validator,
+                                     amount,
+                                     token_denom,
+                                     connection_id)
     }
 }
 
@@ -262,6 +288,86 @@ fn execute_swap(
         connection_id,
         interchain_account_id.clone(),
         vec![cosmos_msg_swap],
+        "".to_string(),
+        DEFAULT_TIMEOUT_SECONDS,
+    );
+
+    let submsg = SubMsg::new(cosmos_msg);
+
+    Ok(Response::default().add_submessages(vec![submsg]))
+}
+
+
+fn execute_send(
+    sender_on_dest_chain: String,
+    receiver_on_dest_chain: String,
+    token_denom: String,
+    token_amount: String,
+    connection_id: String,
+    interchain_account_id: String,
+) -> StdResult<Response<NeutronMsg>> {
+    let send_message = MsgSend {
+        from_address: sender_on_dest_chain.to_string(),
+        to_address: receiver_on_dest_chain.to_string(),
+        amount: vec![Coin { denom: token_denom, amount: token_amount }],
+    };
+
+    let mut buf = Vec::new();
+    buf.reserve(Message::encoded_len(&send_message));
+    if let Err(e) = send_message.encode(&mut buf) {
+        return Err(StdError::generic_err(format!("Encode error: {}", e)));
+    }
+
+    let cosmos_msg_send = ProtobufAny {
+        type_url: "/cosmos.bank.v1beta1.MsgSend".to_string(),
+        value: Binary::from(buf),
+    };
+
+    let cosmos_msg = NeutronMsg::submit_tx(
+        connection_id,
+        interchain_account_id.clone(),
+        vec![cosmos_msg_send],
+        "".to_string(),
+        DEFAULT_TIMEOUT_SECONDS,
+    );
+
+    let submsg = SubMsg::new(cosmos_msg);
+
+    Ok(Response::default().add_submessages(vec![submsg]))
+}
+
+fn execute_custom_delegate(
+    interchain_account_id: String,
+    sender_on_dest_chain: String,
+    validator: String,
+    amount: u128,
+    token_denom: String,
+    connection_id: String,
+) -> StdResult<Response<NeutronMsg>> {
+    let delegate_msg = MsgDelegate {
+        delegator_address: sender_on_dest_chain,
+        validator_address: validator,
+        amount: Some(Coin {
+            denom: token_denom,
+            amount: amount.to_string(),
+        }),
+    };
+    let mut buf = Vec::new();
+
+    buf.reserve(Message::encoded_len(&delegate_msg));
+    if let Err(e) = delegate_msg.encode(&mut buf) {
+        return Err(StdError::generic_err(format!("Encode error: {}", e)));
+    }
+
+    let cosmos_msg_delegate = ProtobufAny {
+        type_url: "/cosmos.staking.v1beta1.MsgDelegate".to_string(),
+        value: Binary::from(buf),
+    };
+
+    let cosmos_msg = NeutronMsg::submit_tx(
+        connection_id,
+        interchain_account_id.clone(),
+        vec![cosmos_msg_delegate],
         "".to_string(),
         DEFAULT_TIMEOUT_SECONDS,
     );
